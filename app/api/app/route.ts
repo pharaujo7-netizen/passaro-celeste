@@ -162,8 +162,12 @@ export async function POST(request: Request) {
     if(!director(p))return fail('Sem permissão.',403);
     const name=String(body.name||'').trim(),category=String(body.category||'').trim();
     if(name.length<3||category.length<3)return fail('Informe nome e categoria.');
+    const sourceUrl=String(body.sourceUrl||'').trim();
+    let verifiedUrl: URL;
+    try { verifiedUrl=new URL(sourceUrl); } catch { return fail('Informe o endereço da página oficial da especialidade.'); }
+    if(verifiedUrl.protocol!=='https:' || !['adventistas.org','www.adventistas.org'].includes(verifiedUrl.hostname) || !verifiedUrl.pathname.startsWith('/pt/desbravadores/especialidades/'))return fail('Use a página da especialidade no site oficial da DSA.');
     const id=crypto.randomUUID();
-    await run('INSERT INTO catalog_items (id,kind,name,category,source_edition,source_url,active) VALUES (?,?,?,?,?,?,1)',id,'specialty',name,category,'Cadastro do clube: conferir no Manual DSA 2025','https://www.editorasobretudo.com.br/manual-de-especialidades-desbravadores-nova-edicao');
+    await run('INSERT INTO catalog_items (id,kind,name,category,source_edition,source_url,active) VALUES (?,?,?,?,?,?,1)',id,'specialty',name,category,'Página pública DSA; conferir alterações no Manual 2025',verifiedUrl.href);
     const lines=String(body.requirements||'').split('\n').map((line:string)=>line.trim()).filter(Boolean);
     for(let i=0;i<Math.min(lines.length,100);i++)await run('INSERT INTO requirements (id,catalog_item_id,section,position,text,evidence_type) VALUES (?,?,?,?,?,?)',crypto.randomUUID(),id,'Conferência do clube',i+1,lines[i].slice(0,1500),'mixed');
     await audit(p,'create','specialty',id);return Response.json({ok:true,id});

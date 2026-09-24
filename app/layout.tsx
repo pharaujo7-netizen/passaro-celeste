@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Pássaro Celeste",
+    title: "Desbravadores Pássaro Celeste",
     statusBarStyle: "black-translucent",
   },
 };

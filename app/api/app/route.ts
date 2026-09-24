@@ -63,7 +63,8 @@ export async function GET() {
   const boardContacts=director(p)?Object.fromEntries(people.filter(person=>['director','secretary','instructor'].includes(person.role)&&person.phone).map(person=>[person.full_name,person.phone])):{};
   const medical = director(p) ? await query('SELECT * FROM medical_records ORDER BY updated_at DESC LIMIT 200') : (await Promise.all(visibleIds.map(id=>query('SELECT * FROM medical_records WHERE user_id=?',id)))).flat();
   const files = staff(p) ? await query('SELECT id,submission_id,file_name,content_type,size_bytes FROM evidence_files ORDER BY created_at DESC LIMIT 300') : (await Promise.all(visibleIds.map(id=>query('SELECT id,submission_id,file_name,content_type,size_bytes FROM evidence_files WHERE submission_id IN (SELECT id FROM submissions WHERE author_id=?)',id)))).flat();
-  return Response.json({authenticated:true,me:p,events,units,catalog,people,dependents,enrollments,submissions,requirements,files,notifications,medical,boardContacts});
+  const creatorNeedsPin=p.role==='creator' && !await first('SELECT user_id FROM credentials WHERE user_id=?','creator');
+  return Response.json({authenticated:true,creatorNeedsPin,me:p,events,units,catalog,people,dependents,enrollments,submissions,requirements,files,notifications,medical,boardContacts});
  } catch { return fail('Não foi possível carregar os dados. Verifique a configuração do banco.',503); }
 }
 
@@ -105,6 +106,13 @@ export async function POST(request: Request) {
     await session(p.id);return Response.json({ok:true});
   }
   const p=await current();if (!p) return fail('Entre na sua conta.',401);
+  if(action==='setCreatorPin') {
+    if(p.id!=='creator' || (await headers()).get('oai-authenticated-user-email')?.toLowerCase()!==ownerEmail) return fail('Faça a verificação inicial do criador.',403);
+    if(await first('SELECT user_id FROM credentials WHERE user_id=?','creator'))return fail('PIN já configurado. Use a recuperação por código para alterá-lo.');
+    const pin=String(body.password||'');if(!/^\d{6}$/.test(pin))return fail('Crie um PIN numérico de 6 dígitos.');
+    const salt=random();await run('INSERT INTO credentials (user_id,salt,password_hash,failed_attempts,locked_until) VALUES (?,?,?,0,0)',p.id,salt,await passwordHash(pin,salt));
+    await audit(p,'set_pin','user',p.id);await session(p.id);return Response.json({ok:true});
+  }
   if(action==='subscribe') {
     const endpoint=String(body.endpoint||'');if(!validEndpoint(endpoint))return fail('Provedor de notificações não reconhecido.');
     await run('INSERT INTO push_subscriptions (endpoint,user_id,created_at) VALUES (?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,created_at=excluded.created_at',endpoint,p.id,stamp());return Response.json({ok:true});

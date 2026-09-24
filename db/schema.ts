@@ -273,3 +273,37 @@ export const auditLog = sqliteTable(
     index("idx_audit_created").on(t.createdAt),
   ],
 );
+
+export const credentials = sqliteTable("credentials", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  salt: text("salt").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: integer("locked_until").notNull().default(0),
+});
+
+export const sessions = sqliteTable("sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  readAt: integer("read_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("idx_notifications_user_created").on(t.userId, t.createdAt)]);
+
+export const medicalRecords = sqliteTable("medical_records", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  allergies: text("allergies"),
+  medications: text("medications"),
+  conditions: text("conditions"),
+  emergencyName: text("emergency_name"),
+  emergencyPhone: text("emergency_phone"),
+  updatedBy: text("updated_by").notNull().references(() => users.id),
+  updatedAt: integer("updated_at").notNull(),
+});

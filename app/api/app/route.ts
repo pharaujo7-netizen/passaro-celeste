@@ -4,6 +4,7 @@ import { sendPush, validEndpoint } from '@/lib/push';
 
 export const runtime = 'edge';
 const ownerEmail = 'pharaujo7@gmail.com';
+const ownerPhone = () => String((env as unknown as Record<string, unknown>).OWNER_PHONE || '');
 const cookieName = 'pc_session';
 const encoder = new TextEncoder();
 type Person = { id: string; full_name: string; phone: string; birth_date: string | null; gender: string | null; role: string; status: string };
@@ -29,7 +30,8 @@ const current = async (): Promise<Person | null> => {
   const email = h.get('oai-authenticated-user-email')?.toLowerCase();
   if (email === ownerEmail) {
     const existing = await first<Person>('SELECT * FROM users WHERE id = ?', 'creator');
-    if (!existing) await run('INSERT INTO users (id,full_name,phone,role,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)','creator','Paulo Araújo','owner','creator','active',stamp(),stamp());
+    if (!existing) await run('INSERT INTO users (id,full_name,phone,role,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)','creator','Paulo Araújo',ownerPhone()||'owner','creator','active',stamp(),stamp());
+    else if (existing.phone === 'owner' && ownerPhone()) await run('UPDATE users SET phone=?,updated_at=? WHERE id=?',ownerPhone(),stamp(),'creator');
     return (await first<Person>('SELECT * FROM users WHERE id = ?', 'creator'))!;
   }
   const raw = (await cookies()).get(cookieName)?.value;
@@ -47,7 +49,7 @@ const audit = (p: Person, action: string, kind: string, id: string) => run('INSE
 export async function GET() {
  try {
   const p = await current();
-  if (!p) return Response.json({authenticated:false});
+  if (!p) return Response.json({authenticated:false,creatorSetupRequired:!await first('SELECT user_id FROM credentials WHERE user_id=?','creator')});
   const events = await query('SELECT * FROM events WHERE starts_at>? ORDER BY starts_at LIMIT 100',stamp()-86400000);
   const units = await query('SELECT * FROM units ORDER BY name');
   const catalog = await query('SELECT * FROM catalog_items WHERE active=1 ORDER BY kind,name');

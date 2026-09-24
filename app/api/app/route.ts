@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     const phone = cleanPhone(String(body.phone||''));
     const code = String(body.code||'').trim();
     const password = String(body.password||'');
-    if (password.length < 10 || code.length < 8) return fail('Informe o código e uma senha com pelo menos 10 caracteres.');
+    if (!/^\d{6}$/.test(password) || !/^\d{10}$/.test(code)) return fail('Informe o código de 10 dígitos e crie um PIN numérico de 6 dígitos.');
     const p = await first<Person>('SELECT * FROM users WHERE phone=? AND status IN (?,?)',phone,'pre_registered','active');
     if (!p) return fail('Cadastro ou código não encontrado.');
     const rows = await query<{id:string;code_hash:string}>('SELECT id,code_hash FROM activation_codes WHERE user_id=? AND used_at IS NULL AND expires_at>? ORDER BY created_at DESC',p.id,stamp());

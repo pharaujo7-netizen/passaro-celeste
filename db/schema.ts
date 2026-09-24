@@ -307,3 +307,9 @@ export const medicalRecords = sqliteTable("medical_records", {
   updatedBy: text("updated_by").notNull().references(() => users.id),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("idx_push_user").on(t.userId)]);

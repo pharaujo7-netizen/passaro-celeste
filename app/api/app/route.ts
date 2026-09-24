@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { cookies, headers } from 'next/headers';
+import { sendPush, validEndpoint } from '@/lib/push';
 
 export const runtime = 'edge';
 const ownerEmail = 'pharaujo7@gmail.com';
@@ -102,6 +103,11 @@ export async function POST(request: Request) {
     await session(p.id);return Response.json({ok:true});
   }
   const p=await current();if (!p) return fail('Entre na sua conta.',401);
+  if(action==='subscribe') {
+    const endpoint=String(body.endpoint||'');if(!validEndpoint(endpoint))return fail('Provedor de notificações não reconhecido.');
+    await run('INSERT INTO push_subscriptions (endpoint,user_id,created_at) VALUES (?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,created_at=excluded.created_at',endpoint,p.id,stamp());return Response.json({ok:true});
+  }
+  if(action==='unsubscribe') {await run('DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?',String(body.endpoint||''),p.id);return Response.json({ok:true});}
   if (action==='logout') {const token=(await cookies()).get(cookieName)?.value;if(token) await run('DELETE FROM sessions WHERE token_hash=?',await hash(token));(await cookies()).delete(cookieName);return Response.json({ok:true});}
   if (action==='createPerson') {
     if(!director(p)) return fail('Sem permissão.',403);
@@ -197,6 +203,7 @@ export async function POST(request: Request) {
     await run('INSERT INTO submissions (id,enrollment_id,requirement_id,author_id,text,status,submitted_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',id,enrollment.id,requirement.id,p.id,String(body.text||'').slice(0,10000),'submitted',stamp(),stamp());await audit(p,'submit','submission',id);
     const reviewers=await query<{id:string}>('SELECT id FROM users WHERE role IN (?,?,?,?) AND status=?','creator','director','secretary','instructor','active');
     for(const reviewer of reviewers)await run('INSERT INTO notifications (id,user_id,title,body,created_at) VALUES (?,?,?,?,?)',crypto.randomUUID(),reviewer.id,'Atividade para avaliar','Um desbravador enviou uma atividade.',stamp());
+    await Promise.allSettled(reviewers.map(reviewer=>sendPush(reviewer.id)));
     return Response.json({ok:true,id});
   }
   if(action==='review') {
@@ -205,7 +212,7 @@ export async function POST(request: Request) {
     await run('INSERT INTO reviews (id,submission_id,reviewer_id,decision,comment,created_at) VALUES (?,?,?,?,?,?)',crypto.randomUUID(),sub.id,p.id,decision,String(body.comment||'').slice(0,2000),stamp());
     await run('UPDATE submissions SET status=?,updated_at=? WHERE id=?',decision,stamp(),sub.id);await audit(p,'review','submission',sub.id);
     const author=await first<{author_id:string}>('SELECT author_id FROM submissions WHERE id=?',sub.id);
-    if(author)await run('INSERT INTO notifications (id,user_id,title,body,created_at) VALUES (?,?,?,?,?)',crypto.randomUUID(),author.author_id,decision==='approved'?'Atividade aprovada':'Correção solicitada',String(body.comment||'Confira sua atividade no aplicativo.'),stamp());
+    if(author){await run('INSERT INTO notifications (id,user_id,title,body,created_at) VALUES (?,?,?,?,?)',crypto.randomUUID(),author.author_id,decision==='approved'?'Atividade aprovada':'Correção solicitada',String(body.comment||'Confira sua atividade no aplicativo.'),stamp());await sendPush(author.author_id)}
     return Response.json({ok:true});
   }
   return fail('Ação não reconhecida.');

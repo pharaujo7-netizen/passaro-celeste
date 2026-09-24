@@ -19,3 +19,7 @@ Os cartões de classes regulares e agrupadas apontam para as páginas oficiais d
 ## Desenvolvimento
 
 Use `node /root/.codex/plugins/cache/openai-curated-remote/sites/0.1.71/scripts/configure-execution-profile.mjs` ao abrir um checkout no runtime Sites, depois instale dependências e execute o build. Migrações do banco são geradas a partir de `db/schema.ts` pelo Drizzle e aplicadas na publicação. Não inclua dados de pessoas ou códigos de ativação no Git.
+
+## Notificações
+
+O usuário ativa push em cada aparelho pelo botão da tela inicial. O navegador precisa oferecer Push API; no iPhone, o site deve ser aberto como aplicativo adicionado à Tela de Início. O Worker envia um sinal Web Push ao haver envio ou avaliação de atividade e o service worker consulta o aviso autenticado. O aviso também fica registrado no aplicativo. A entrega externa depende da permissão do sistema, conectividade e serviço de push do fabricante.
